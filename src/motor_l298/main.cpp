@@ -6,8 +6,8 @@
 #include <ESPAsyncWebServer.h>
 
 // ── WiFi ───────────────────────────────────────────
-const char *STA_SSID = "My_Home";
-const char *STA_PASS = "w4@Rwifi??";
+const char *STA_SSID = "MyHomeIOT";
+const char *STA_PASS = "MyHomeIOT123456789";
 
 // ── Pins ───────────────────────────────────────────
 #define ENA_PIN 5
@@ -81,8 +81,17 @@ void onWsEvent(AsyncWebSocket *s, AsyncWebSocketClient *c,
 void setup()
 {
   Serial.begin(115200);
-  delay(500);
+  delay(2000);
   Serial.println("\n[BOOT] Motor Control starting...");
+
+  WiFi.mode(WIFI_STA);
+  delay(200);
+  Serial.println("[WiFi] Scanning...");
+  int n = WiFi.scanNetworks();
+  for (int i = 0; i < n; i++)
+  {
+    Serial.printf("  %s  (%ddBm)\n", WiFi.SSID(i).c_str(), WiFi.RSSI(i));
+  }
 
   // Motor pins
   pinMode(IN1_PIN, OUTPUT);
