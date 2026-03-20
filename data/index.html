@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
+    <title>Motor Control Panel</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;600;700;900&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0b0b0a;
+        --panel: #111110;
+        --border: #2a2820;
+        --amber: #f59e0b;
+        --amber-dim: #92600a;
+        --amber-glow: rgba(245, 158, 11, 0.15);
+        --green: #22c55e;
+        --green-dim: #14532d;
+        --red: #ef4444;
+        --red-dim: #450a0a;
+        --blue: #60a5fa;
+        --blue-dim: #1e3a5f;
+        --text-dim: #4a4840;
+        --text-mid: #7a7260;
+        --text: #d4cbb0;
+        --mono: "Share Tech Mono", monospace;
+        --display: "Barlow Condensed", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--display);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 24px 16px;
+        background-image:
+          repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 40px,
+            rgba(255, 255, 255, 0.01) 40px,
+            rgba(255, 255, 255, 0.01) 41px
+          ),
+          repeating-linear-gradient(
+            90deg,
+            transparent,
+            transparent 40px,
+            rgba(255, 255, 255, 0.01) 40px,
+            rgba(255, 255, 255, 0.01) 41px
+          );
+      }
+
+      /* ── Header ── */
+      .header {
+        width: 100%;
+        max-width: 400px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin-bottom: 16px;
+      }
+      .title-block {
+      }
+      .model-tag {
+        font-family: var(--mono);
+        font-size: 0.65rem;
+        color: var(--text-dim);
+        letter-spacing: 0.15em;
+        margin-bottom: 4px;
+      }
+      h1 {
+        font-size: 1.9rem;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        color: var(--amber);
+        text-transform: uppercase;
+        line-height: 1;
+      }
+      .ws-status {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-family: var(--mono);
+        font-size: 0.65rem;
+        color: var(--text-dim);
+        letter-spacing: 0.1em;
+        padding-bottom: 4px;
+      }
+      .ws-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--text-dim);
+        transition:
+          background 0.3s,
+          box-shadow 0.3s;
+      }
+      .ws-dot.on {
+        background: var(--green);
+        box-shadow: 0 0 8px var(--green);
+      }
+      .ws-dot.err {
+        background: var(--red);
+        box-shadow: 0 0 8px var(--red);
+        animation: blink 1s step-end infinite;
+      }
+      @keyframes blink {
+        50% {
+          opacity: 0;
+        }
+      }
+
+      /* ── Main Panel ── */
+      .panel {
+        width: 100%;
+        max-width: 400px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        overflow: hidden;
+        box-shadow:
+          0 0 40px rgba(0, 0, 0, 0.8),
+          inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      }
+
+      /* ── Section Headers ── */
+      .section-header {
+        padding: 8px 20px;
+        background: rgba(255, 255, 255, 0.02);
+        border-bottom: 1px solid var(--border);
+        font-family: var(--mono);
+        font-size: 0.62rem;
+        letter-spacing: 0.2em;
+        color: var(--text-dim);
+        display: flex;
+        justify-content: space-between;
+      }
+
+      /* ── Readout ── */
+      .readout-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        border-bottom: 1px solid var(--border);
+      }
+      .readout {
+        padding: 16px 20px;
+        border-right: 1px solid var(--border);
+      }
+      .readout:last-child {
+        border-right: none;
+      }
+      .readout-label {
+        font-family: var(--mono);
+        font-size: 0.58rem;
+        letter-spacing: 0.15em;
+        color: var(--text-dim);
+        margin-bottom: 6px;
+      }
+      .readout-value {
+        font-family: var(--mono);
+        font-size: 1.5rem;
+        font-weight: 400;
+        color: var(--amber);
+        line-height: 1;
+        text-shadow: 0 0 12px var(--amber-glow);
+        transition: color 0.2s;
+      }
+      .readout-unit {
+        font-size: 0.65rem;
+        color: var(--text-dim);
+        margin-left: 2px;
+      }
+      .readout-value.green {
+        color: var(--green);
+        text-shadow: 0 0 12px rgba(34, 197, 94, 0.2);
+      }
+      .readout-value.red {
+        color: var(--red);
+        text-shadow: 0 0 12px rgba(239, 68, 68, 0.2);
+      }
+      .readout-value.blue {
+        color: var(--blue);
+        text-shadow: 0 0 12px rgba(96, 165, 250, 0.2);
+      }
+      .readout-value.dim {
+        color: var(--text-mid);
+        text-shadow: none;
+      }
+
+      /* ── Speed Slider ── */
+      .speed-section {
+        padding: 24px 20px 20px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .speed-big {
+        text-align: center;
+        font-family: var(--mono);
+        font-size: 4.5rem;
+        line-height: 1;
+        color: var(--amber);
+        text-shadow: 0 0 30px var(--amber-glow);
+        transition:
+          color 0.2s,
+          text-shadow 0.2s;
+        margin-bottom: 4px;
+      }
+      .speed-big .pct {
+        font-size: 1.5rem;
+        color: var(--text-mid);
+        margin-left: 4px;
+      }
+
+      .slider-wrap {
+        position: relative;
+        margin: 20px 0 8px;
+      }
+      .slider-track {
+        position: relative;
+        height: 8px;
+        background: #1a1915;
+        border: 1px solid var(--border);
+        border-radius: 2px;
+        overflow: hidden;
+      }
+      .slider-fill {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        background: var(--amber);
+        width: 0%;
+        transition: width 0.05s;
+        box-shadow: 4px 0 12px var(--amber-glow);
+      }
+      input[type="range"] {
+        position: absolute;
+        top: 50%;
+        left: 0;
+        right: 0;
+        transform: translateY(-50%);
+        width: 100%;
+        height: 8px;
+        -webkit-appearance: none;
+        background: transparent;
+        cursor: pointer;
+        margin: 0;
+      }
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 20px;
+        height: 28px;
+        background: var(--amber);
+        border-radius: 2px;
+        cursor: pointer;
+        box-shadow:
+          0 0 10px var(--amber-glow),
+          0 2px 4px rgba(0, 0, 0, 0.5);
+        transition: transform 0.1s;
+      }
+      input[type="range"]:active::-webkit-slider-thumb {
+        transform: scaleY(1.1);
+      }
+
+      .slider-labels {
+        display: flex;
+        justify-content: space-between;
+        font-family: var(--mono);
+        font-size: 0.58rem;
+        color: var(--text-dim);
+        letter-spacing: 0.1em;
+        margin-top: 10px;
+      }
+
+      /* ── Direction Buttons ── */
+      .dir-section {
+        padding: 20px;
+      }
+      .btn-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 10px;
+      }
+      .btn {
+        padding: 18px 8px;
+        border: 1px solid;
+        border-radius: 3px;
+        background: transparent;
+        font-family: var(--display);
+        font-weight: 700;
+        font-size: 0.85rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        cursor: pointer;
+        transition: all 0.12s;
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+      }
+      .btn::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        transition: opacity 0.12s;
+      }
+      .btn:active {
+        transform: scale(0.97);
+      }
+
+      .btn-icon {
+        font-size: 1.2rem;
+        line-height: 1;
+      }
+
+      /* Forward */
+      .btn-fwd {
+        border-color: var(--green-dim);
+        color: var(--green);
+      }
+      .btn-fwd::before {
+        background: var(--green);
+      }
+      .btn-fwd:hover::before,
+      .btn-fwd.active::before {
+        opacity: 0.12;
+      }
+      .btn-fwd.active {
+        border-color: var(--green);
+        box-shadow:
+          0 0 16px rgba(34, 197, 94, 0.3),
+          inset 0 0 16px rgba(34, 197, 94, 0.05);
+      }
+
+      /* Stop */
+      .btn-stop {
+        border-color: var(--red-dim);
+        color: var(--red);
+      }
+      .btn-stop::before {
+        background: var(--red);
+      }
+      .btn-stop:hover::before,
+      .btn-stop.active::before {
+        opacity: 0.12;
+      }
+      .btn-stop.active {
+        border-color: var(--red);
+        box-shadow:
+          0 0 16px rgba(239, 68, 68, 0.3),
+          inset 0 0 16px rgba(239, 68, 68, 0.05);
+      }
+
+      /* Backward */
+      .btn-bwd {
+        border-color: var(--blue-dim);
+        color: var(--blue);
+      }
+      .btn-bwd::before {
+        background: var(--blue);
+      }
+      .btn-bwd:hover::before,
+      .btn-bwd.active::before {
+        opacity: 0.12;
+      }
+      .btn-bwd.active {
+        border-color: var(--blue);
+        box-shadow:
+          0 0 16px rgba(96, 165, 250, 0.3),
+          inset 0 0 16px rgba(96, 165, 250, 0.05);
+      }
+
+      /* ── Footer ── */
+      .panel-footer {
+        padding: 10px 20px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .footer-tag {
+        font-family: var(--mono);
+        font-size: 0.58rem;
+        color: var(--text-dim);
+        letter-spacing: 0.12em;
+      }
+      .ip-tag {
+        font-family: var(--mono);
+        font-size: 0.58rem;
+        color: var(--amber-dim);
+        letter-spacing: 0.1em;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div class="title-block">
+        <div class="model-tag">ESP32-C3 // L298N DRIVER</div>
+        <h1>Motor Control</h1>
+      </div>
+      <div class="ws-status">
+        <div class="ws-dot" id="dot"></div>
+        <span id="conn-label">OFFLINE</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <!-- Readout strip -->
+      <div class="section-header">
+        <span>TELEMETRY</span>
+        <span id="tick">──────</span>
+      </div>
+      <div class="readout-row">
+        <div class="readout">
+          <div class="readout-label">SPEED</div>
+          <div class="readout-value" id="r-speed">
+            0<span class="readout-unit">%</span>
+          </div>
+        </div>
+        <div class="readout">
+          <div class="readout-label">PWM</div>
+          <div class="readout-value" id="r-pwm">
+            0<span class="readout-unit">/255</span>
+          </div>
+        </div>
+        <div class="readout">
+          <div class="readout-label">DIR</div>
+          <div class="readout-value dim" id="r-dir">STP</div>
+        </div>
+      </div>
+
+      <!-- Speed slider -->
+      <div class="section-header">
+        <span>SPEED CONTROL</span>
+        <span>0 – 100%</span>
+      </div>
+      <div class="speed-section">
+        <div class="speed-big" id="speed-big">0<span class="pct">%</span></div>
+        <div class="slider-wrap">
+          <div class="slider-track">
+            <div class="slider-fill" id="slider-fill"></div>
+          </div>
+          <input type="range" id="slider" min="0" max="100" value="0" />
+        </div>
+        <div class="slider-labels">
+          <span>STOP</span>
+          <span>HALF</span>
+          <span>FULL</span>
+        </div>
+      </div>
+
+      <!-- Direction buttons -->
+      <div class="section-header">
+        <span>DIRECTION</span>
+        <span>SELECT ONE</span>
+      </div>
+      <div class="dir-section">
+        <div class="btn-row">
+          <button class="btn btn-fwd" id="btn-fwd" onclick="setDir('F')">
+            <span class="btn-icon">▲</span>
+            <span>FWD</span>
+          </button>
+          <button
+            class="btn btn-stop active"
+            id="btn-stop"
+            onclick="setDir('S')"
+          >
+            <span class="btn-icon">■</span>
+            <span>STOP</span>
+          </button>
+          <button class="btn btn-bwd" id="btn-bwd" onclick="setDir('B')">
+            <span class="btn-icon">▼</span>
+            <span>BWD</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="panel-footer">
+        <span class="footer-tag">L298N // MOTOR-A // ENA:GPIO5</span>
+        <span class="ip-tag" id="ip-tag">192.168.4.1</span>
+      </div>
+    </div>
+
+    <script>
+      let ws,
+        dir = "S",
+        speed = 0,
+        tickInterval;
+
+      // ── WebSocket ──────────────────────────────────
+      function connect() {
+        const host =
+          location.hostname !== "" ? location.hostname : "motor.local";
+        ws = new WebSocket("ws://" + host + "/ws");
+
+        ws.onopen = () => {
+          document.getElementById("dot").className = "ws-dot on";
+          document.getElementById("conn-label").textContent = "ONLINE";
+          startTick();
+        };
+        ws.onclose = () => {
+          document.getElementById("dot").className = "ws-dot err";
+          document.getElementById("conn-label").textContent = "RETRY…";
+          clearInterval(tickInterval);
+          setTimeout(connect, 2000);
+        };
+        ws.onerror = () => ws.close();
+      }
+      function sendCmd() {
+        const pwm = dir === "S" ? 0 : Math.round(speed * 2.55);
+        if (ws && ws.readyState === 1) ws.send(dir + ":" + pwm);
+      }
+
+      // ── Ticker animation ──────────────────────────
+      const ticks = ["──────", "━─────", "──────", "─────━"];
+      let ti = 0;
+      function startTick() {
+        tickInterval = setInterval(() => {
+          document.getElementById("tick").textContent =
+            ticks[ti++ % ticks.length];
+        }, 400);
+      }
+
+      // ── Direction ─────────────────────────────────
+      function setDir(d) {
+        dir = d;
+        ["fwd", "stop", "bwd"].forEach((x) =>
+          document.getElementById("btn-" + x).classList.remove("active"),
+        );
+
+        const dirEl = document.getElementById("r-dir");
+        dirEl.className = "readout-value";
+
+        if (d === "F") {
+          document.getElementById("btn-fwd").classList.add("active");
+          dirEl.classList.add("green");
+          dirEl.textContent = "FWD";
+        } else if (d === "B") {
+          document.getElementById("btn-bwd").classList.add("active");
+          dirEl.classList.add("blue");
+          dirEl.textContent = "BWD";
+        } else {
+          document.getElementById("btn-stop").classList.add("active");
+          dirEl.classList.add("dim");
+          dirEl.textContent = "STP";
+        }
+
+        updateReadouts();
+        sendCmd();
+      }
+
+      // ── Slider ────────────────────────────────────
+      const slider = document.getElementById("slider");
+      slider.addEventListener("input", function () {
+        speed = parseInt(this.value);
+        updateReadouts();
+        if (dir !== "S") sendCmd();
+      });
+
+      function updateReadouts() {
+        const pwm = dir === "S" ? 0 : Math.round(speed * 2.55);
+        const disp = dir === "S" ? 0 : speed;
+
+        document.getElementById("speed-big").innerHTML =
+          disp + '<span class="pct">%</span>';
+        document.getElementById("slider-fill").style.width = disp + "%";
+        document.getElementById("r-speed").innerHTML =
+          disp + '<span class="readout-unit">%</span>';
+        document.getElementById("r-pwm").innerHTML =
+          pwm + '<span class="readout-unit">/255</span>';
+
+        // Amber pulsing on high speed
+        const big = document.getElementById("speed-big");
+        if (disp > 75) big.style.textShadow = "0 0 50px rgba(245,158,11,0.5)";
+        else big.style.textShadow = "0 0 30px rgba(245,158,11,0.15)";
+      }
+
+      connect();
+    </script>
+  </body>
+</html>
