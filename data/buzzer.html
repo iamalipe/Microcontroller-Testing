@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Buzzer Control</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: system-ui, sans-serif;
+        background: #0f0f0f;
+        color: #eee;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-height: 100vh;
+        padding: 2rem 1rem;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin-bottom: 0.25rem;
+      }
+      .subtitle {
+        color: #888;
+        font-size: 0.85rem;
+        margin-bottom: 2rem;
+      }
+
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.3rem 0.8rem;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin-bottom: 2rem;
+        background: #1e1e1e;
+        border: 1px solid #333;
+        transition: all 0.3s;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #555;
+        transition: background 0.3s;
+      }
+      .status-pill.on .dot {
+        background: #4ade80;
+        box-shadow: 0 0 6px #4ade80;
+      }
+      .status-pill.on {
+        border-color: #4ade80;
+        color: #4ade80;
+      }
+
+      .card {
+        background: #1a1a1a;
+        border: 1px solid #2a2a2a;
+        border-radius: 16px;
+        padding: 1.5rem;
+        width: 100%;
+        max-width: 380px;
+        margin-bottom: 1rem;
+      }
+      .card h2 {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: #888;
+        margin-bottom: 1rem;
+      }
+
+      label {
+        font-size: 0.8rem;
+        color: #aaa;
+        display: block;
+        margin-bottom: 0.3rem;
+      }
+      .row {
+        display: flex;
+        gap: 0.5rem;
+        align-items: flex-end;
+        margin-bottom: 0.75rem;
+      }
+      .field {
+        flex: 1;
+      }
+      input[type="range"] {
+        width: 100%;
+        accent-color: #6366f1;
+      }
+      .val {
+        font-size: 0.75rem;
+        color: #6366f1;
+        text-align: right;
+        margin-top: 0.2rem;
+      }
+
+      .btn {
+        width: 100%;
+        padding: 0.7rem;
+        border: none;
+        border-radius: 10px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition:
+          opacity 0.15s,
+          transform 0.1s;
+      }
+      .btn:active {
+        transform: scale(0.97);
+      }
+      .btn:hover {
+        opacity: 0.85;
+      }
+
+      .btn-on {
+        background: #4ade80;
+        color: #000;
+      }
+      .btn-off {
+        background: #f87171;
+        color: #000;
+      }
+      .btn-beep {
+        background: #6366f1;
+        color: #fff;
+      }
+      .btn-alarm {
+        background: #f59e0b;
+        color: #000;
+      }
+      .btn-melody {
+        background: #38bdf8;
+        color: #000;
+      }
+
+      .grid2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🔔 Buzzer Control</h1>
+    <p class="subtitle">ESP32-C3 Super Mini</p>
+
+    <div class="status-pill" id="pill">
+      <div class="dot"></div>
+      <span id="pillText">OFF — 0 Hz</span>
+    </div>
+
+    <!-- Continuous tone -->
+    <div class="card">
+      <h2>Continuous Tone</h2>
+      <label>Frequency: <span id="freqVal">1000</span> Hz</label>
+      <input
+        type="range"
+        id="freqSlider"
+        min="100"
+        max="5000"
+        value="1000"
+        oninput="document.getElementById('freqVal').textContent = this.value"
+      />
+      <br /><br />
+      <div class="grid2">
+        <button class="btn btn-on" onclick="post('/on', { freq: slider() })">
+          ▶ ON
+        </button>
+        <button class="btn btn-off" onclick="post('/off', {})">■ OFF</button>
+      </div>
+    </div>
+
+    <!-- Beep -->
+    <div class="card">
+      <h2>Single Beep</h2>
+      <div class="row">
+        <div class="field">
+          <label>Freq: <span id="bFreqVal">1000</span> Hz</label>
+          <input
+            type="range"
+            id="bFreq"
+            min="100"
+            max="5000"
+            value="1000"
+            oninput="
+              document.getElementById('bFreqVal').textContent = this.value
+            "
+          />
+        </div>
+        <div class="field">
+          <label>Duration: <span id="bDurVal">300</span> ms</label>
+          <input
+            type="range"
+            id="bDur"
+            min="50"
+            max="2000"
+            value="300"
+            oninput="
+              document.getElementById('bDurVal').textContent = this.value
+            "
+          />
+        </div>
+      </div>
+      <button
+        class="btn btn-beep"
+        onclick="post('/beep', { freq: bfreq(), duration: bdur() })"
+      >
+        ⚡ BEEP
+      </button>
+    </div>
+
+    <!-- Patterns -->
+    <div class="card">
+      <h2>Patterns</h2>
+      <div class="grid2">
+        <button class="btn btn-alarm" onclick="post('/alarm', {})">
+          🚨 Alarm
+        </button>
+        <button class="btn btn-melody" onclick="post('/melody', {})">
+          🎵 Melody
+        </button>
+      </div>
+    </div>
+
+    <script>
+      const slider = () => +document.getElementById("freqSlider").value;
+      const bfreq = () => +document.getElementById("bFreq").value;
+      const bdur = () => +document.getElementById("bDur").value;
+
+      async function post(url, params) {
+        const body = new URLSearchParams(params);
+        await fetch(url, { method: "POST", body });
+        refreshStatus();
+      }
+
+      async function refreshStatus() {
+        const res = await fetch("/status");
+        const data = await res.json();
+        const pill = document.getElementById("pill");
+        const text = document.getElementById("pillText");
+        if (data.active) {
+          pill.className = "status-pill on";
+          text.textContent = `ON — ${data.freq} Hz`;
+        } else {
+          pill.className = "status-pill";
+          text.textContent = "OFF — 0 Hz";
+        }
+      }
+
+      setInterval(refreshStatus, 2000);
+      refreshStatus();
+    </script>
+  </body>
+</html>
