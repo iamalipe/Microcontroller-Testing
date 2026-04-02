@@ -1,0 +1,275 @@
+#include <Arduino.h>
+#include <WiFi.h>
+#include <ESPmDNS.h>
+#include <ESPAsyncWebServer.h>
+#include <SD.h>
+#include <SPI.h>
+
+// ── Config ────────────────────────────────────────────────
+const char *SSID = "MyHomeIOT";
+const char *PASSWORD = "Abcd1234";
+const char *HOSTNAME = "nas"; // http://nas.local
+
+// ── SPI / SD pins ─────────────────────────────────────────
+#define SD_MISO 5
+#define SD_MOSI 6
+#define SD_SCK 4
+#define SD_CS 7
+
+AsyncWebServer server(80);
+File uploadFile;
+
+// ──────────────────────────────────────────────────────────
+// HTML UI
+// ──────────────────────────────────────────────────────────
+const char INDEX_HTML[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ESP32 NAS</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap');
+  :root {
+    --bg: #0d0d0d; --surface: #181818; --border: #2a2a2a;
+    --accent: #00e5ff; --danger: #ff4d6d; --text: #e0e0e0; --muted: #666;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'JetBrains Mono', monospace;
+         min-height: 100vh; padding: 24px; }
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; border-bottom: 1px solid var(--border); padding-bottom: 16px; }
+  header h1 { font-size: 1.1rem; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; }
+  #disk-info { margin-left: auto; font-size: 0.75rem; color: var(--muted); }
+  .upload-zone { border: 1px dashed var(--border); border-radius: 8px; padding: 20px;
+                 text-align: center; margin-bottom: 20px; cursor: pointer;
+                 transition: border-color .2s; background: var(--surface); }
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); }
+  .upload-zone input { display: none; }
+  .upload-zone p { color: var(--muted); font-size: 0.8rem; }
+  #progress-wrap { display: none; margin-bottom: 16px; }
+  #progress-bar { height: 3px; background: var(--accent); width: 0%; transition: width .2s; border-radius: 2px; }
+  #progress-label { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  thead tr { border-bottom: 1px solid var(--border); }
+  th { padding: 8px 10px; text-align: left; color: var(--muted); font-weight: 400; letter-spacing: 1px; font-size: 0.7rem; text-transform: uppercase; }
+  td { padding: 10px; border-bottom: 1px solid #1a1a1a; vertical-align: middle; }
+  tr:hover td { background: var(--surface); }
+  .fname { color: var(--accent); text-decoration: none; }
+  .fname:hover { text-decoration: underline; }
+  .size  { color: var(--muted); white-space: nowrap; }
+  .del-btn { background: none; border: 1px solid #3a1a1a; color: var(--danger);
+             padding: 3px 10px; border-radius: 4px; cursor: pointer; font-family: inherit;
+             font-size: 0.75rem; transition: background .15s; }
+  .del-btn:hover { background: #2a0a12; }
+  #toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface);
+           border: 1px solid var(--border); padding: 10px 18px; border-radius: 6px;
+           font-size: 0.8rem; opacity: 0; transition: opacity .3s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+  .empty { color: var(--muted); text-align: center; padding: 40px; font-size: 0.8rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>⬡ ESP32 NAS</h1>
+  <span id="disk-info">loading…</span>
+</header>
+
+<div class="upload-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+  <input type="file" id="file-input" multiple>
+  <p>Drop files here or click to upload</p>
+</div>
+<div id="progress-wrap">
+  <div id="progress-bar"></div>
+  <div id="progress-label"></div>
+</div>
+
+<table>
+  <thead><tr><th>Name</th><th>Size</th><th></th></tr></thead>
+  <tbody id="file-list"><tr><td colspan="3" class="empty">Loading…</td></tr></tbody>
+</table>
+
+<div id="toast"></div>
+
+<script>
+const toast = (msg, dur=2500) => {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), dur);
+};
+
+const fmt = b => b < 1024 ? b+'B' : b < 1048576 ? (b/1024).toFixed(1)+'KB' : (b/1048576).toFixed(2)+'MB';
+
+async function loadFiles() {
+  const res = await fetch('/list');
+  const { files, total, used } = await res.json();
+  document.getElementById('disk-info').textContent =
+    `${fmt(used)} used / ${fmt(total)}`;
+  const tbody = document.getElementById('file-list');
+  if (!files.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="empty">SD card is empty</td></tr>';
+    return;
+  }
+  tbody.innerHTML = files.map(f => `
+    <tr>
+      <td><a class="fname" href="/download?path=${encodeURIComponent(f.name)}" download="${f.name.split('/').pop()}">${f.name}</a></td>
+      <td class="size">${fmt(f.size)}</td>
+      <td><button class="del-btn" onclick="delFile('${f.name}')">Delete</button></td>
+    </tr>`).join('');
+}
+
+async function delFile(path) {
+  if (!confirm('Delete ' + path + '?')) return;
+  const res = await fetch('/delete?path=' + encodeURIComponent(path), { method: 'DELETE' });
+  toast(await res.text());
+  loadFiles();
+}
+
+// Upload
+async function uploadFiles(files) {
+  for (const file of files) {
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+    const wrap = document.getElementById('progress-wrap');
+    const bar  = document.getElementById('progress-bar');
+    const lbl  = document.getElementById('progress-label');
+    wrap.style.display = 'block'; bar.style.width = '0%';
+    lbl.textContent = 'Uploading ' + file.name + '…';
+    await new Promise((resolve) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/upload');
+      xhr.upload.onprogress = e => {
+        if (e.lengthComputable) {
+          const pct = Math.round(e.loaded/e.total*100);
+          bar.style.width = pct + '%';
+          lbl.textContent = `Uploading ${file.name}… ${pct}%`;
+        }
+      };
+      xhr.onload = () => { toast('Uploaded: ' + file.name); resolve(); };
+      xhr.onerror = () => { toast('Upload failed!'); resolve(); };
+      xhr.send(fd);
+    });
+    wrap.style.display = 'none';
+    loadFiles();
+  }
+}
+
+document.getElementById('file-input').addEventListener('change', e => uploadFiles(e.target.files));
+
+const dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover',  e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop',      e => { e.preventDefault(); dz.classList.remove('drag'); uploadFiles(e.dataTransfer.files); });
+
+loadFiles();
+</script>
+</body>
+</html>
+)rawliteral";
+
+// ──────────────────────────────────────────────────────────
+// Helpers
+// ──────────────────────────────────────────────────────────
+String buildFileListJSON()
+{
+  String json = "{\"files\":[";
+  File root = SD.open("/");
+  bool first = true;
+  while (true)
+  {
+    File f = root.openNextFile();
+    if (!f)
+      break;
+    if (!f.isDirectory())
+    {
+      if (!first)
+        json += ",";
+      json += "{\"name\":\"/" + String(f.name()) + "\",\"size\":" + f.size() + "}";
+      first = false;
+    }
+    f.close();
+  }
+  root.close();
+  uint64_t total = SD.totalBytes();
+  uint64_t used = SD.usedBytes();
+  json += "],\"total\":" + String((uint32_t)total) + ",\"used\":" + String((uint32_t)used) + "}";
+  return json;
+}
+
+// ──────────────────────────────────────────────────────────
+void setup()
+{
+  Serial.begin(115200);
+  delay(2000);
+  // SD init
+  SPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+  if (!SD.begin(SD_CS))
+  {
+    Serial.println("SD init failed!");
+    while (true)
+      delay(1000);
+  }
+  Serial.println("SD OK  type:" + String(SD.cardType()));
+
+  // WiFi
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(SSID, PASSWORD);
+  Serial.print("Connecting");
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nIP: " + WiFi.localIP().toString());
+
+  // mDNS
+  if (MDNS.begin(HOSTNAME))
+    Serial.println("mDNS: http://" + String(HOSTNAME) + ".local");
+
+  // ── Routes ──────────────────────────────────────────────
+
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *req)
+            { req->send(200, "text/html", INDEX_HTML); });
+
+  server.on("/list", HTTP_GET, [](AsyncWebServerRequest *req)
+            { req->send(200, "application/json", buildFileListJSON()); });
+
+  server.on("/download", HTTP_GET, [](AsyncWebServerRequest *req)
+            {
+    if (!req->hasParam("path")) { req->send(400, "text/plain", "Missing path"); return; }
+    String path = req->getParam("path")->value();
+    if (!SD.exists(path)) { req->send(404, "text/plain", "Not found"); return; }
+    req->send(SD, path, "application/octet-stream", true); });
+
+  server.on("/delete", HTTP_DELETE, [](AsyncWebServerRequest *req)
+            {
+    if (!req->hasParam("path")) { req->send(400, "text/plain", "Missing path"); return; }
+    String path = req->getParam("path")->value();
+    if (!SD.exists(path)) { req->send(404, "text/plain", "Not found"); return; }
+    SD.remove(path);
+    req->send(200, "text/plain", "Deleted: " + path); });
+
+  // Upload handler
+  server.on("/upload", HTTP_POST, [](AsyncWebServerRequest *req)
+            { req->send(200, "text/plain", "OK"); }, [](AsyncWebServerRequest *req, String filename, size_t index, uint8_t *data, size_t len, bool final)
+            {
+      if (!index) {
+        String path = "/" + filename;
+        if (SD.exists(path)) SD.remove(path);
+        uploadFile = SD.open(path, FILE_WRITE);
+        Serial.println("Upload start: " + path);
+      }
+      if (uploadFile) uploadFile.write(data, len);
+      if (final) {
+        if (uploadFile) uploadFile.close();
+        Serial.printf("Upload done: %s (%u bytes)\n", filename.c_str(), index + len);
+      } });
+
+  server.onNotFound([](AsyncWebServerRequest *req)
+                    { req->send(404, "text/plain", "Not found"); });
+
+  server.begin();
+  Serial.println("Server started");
+}
+
+void loop() {}
