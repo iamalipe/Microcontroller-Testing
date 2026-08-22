@@ -96,34 +96,3 @@ void loop()
   display.display();
   delay(500);
 }
-
-// #include <Arduino.h>
-// #include <Wire.h>
-
-// #define SDA_PIN 8
-// #define SCL_PIN 9
-
-// void setup()
-// {
-//   Serial.begin(115200);
-//   Serial.println("Hello, I2C!");
-//   delay(2000);
-//   Serial.println("Start Scanning I2C...");
-//   Wire.begin(SDA_PIN, SCL_PIN);
-
-//   Serial.println("Scanning I2C...");
-//   int found = 0;
-//   for (uint8_t addr = 1; addr < 127; addr++)
-//   {
-//     Wire.beginTransmission(addr);
-//     if (Wire.endTransmission() == 0)
-//     {
-//       Serial.printf("Found device at 0x%02X\n", addr);
-//       found++;
-//     }
-//   }
-//   if (found == 0)
-//     Serial.println("No I2C devices found!");
-// }
-
-// void loop() {}
